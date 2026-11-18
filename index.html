@@ -5,20 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Monitoring Suhu Anakan Jalak Bali</title>
   <style>
-    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --ok: #22c55e; --warn: #f59e0b; }
+    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --ok: #22c55e; --err: #ef4444; }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background: var(--bg); color: var(--text); padding: 20px; }
     .container { max-width: 1080px; margin: 0 auto; display: grid; gap: 18px; }
     header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
     h1 { font-size: 1.35rem; }
     .badge { background: var(--card); border: 1px solid #334155; padding: 6px 12px; border-radius: 999px; font-size: 0.85rem; color: var(--muted); }
+    .badge.ok { border-color: var(--ok); color: #86efac; }
+    .badge.err { border-color: var(--err); color: #fca5a5; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
     .card { background: var(--card); border: 1px solid #334155; border-radius: 12px; padding: 16px; }
     .card h2 { font-size: 1rem; color: var(--muted); margin-bottom: 10px; }
     .temp-val { font-size: 2.4rem; font-weight: 700; color: var(--accent); }
     .sub { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
-    .cam-box { width: 100%; aspect-ratio: 16 / 9; background: #020617; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #334155; }
+    .cam-box { width: 100%; aspect-ratio: 16 / 9; background: #020617; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #334155; position: relative; }
     .cam-box img { width: 100%; height: 100%; object-fit: cover; }
+    .cam-placeholder { color: var(--muted); font-size: 0.88rem; padding: 12px; text-align: center; }
     .relay-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .relay-btn { background: #0f172a; color: var(--text); border: 1px solid #475569; border-radius: 10px; padding: 12px; text-align: left; cursor: pointer; transition: 0.15s; }
     .relay-btn.on { border-color: var(--ok); background: rgba(34, 197, 94, 0.14); }
@@ -27,13 +30,14 @@
     .controls-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
     input { background: #0f172a; color: var(--text); border: 1px solid #475569; border-radius: 8px; padding: 8px 10px; font-size: 0.88rem; flex: 1; min-width: 140px; }
     button.action { background: var(--accent); color: #0f172a; font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+    button.secondary { background: #334155; color: var(--text); font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>Brooder Jalak Bali — ESP32-S3 CAM &amp; Relay 4-Ch</h1>
-      <span class="badge" id="status-badge">Mode Simulasi / Menunggu ESP32</span>
+      <span class="badge" id="status-badge">Menunggu Koneksi ESP32</span>
     </header>
 
     <div class="grid">
@@ -52,6 +56,7 @@
         <div class="relay-list" id="relay-grid"></div>
         <div class="controls-row">
           <button class="action" id="mode-toggle">Auto: ON</button>
+          <button class="secondary" id="all-off">Matikan Semua</button>
         </div>
       </div>
     </div>
@@ -59,11 +64,14 @@
     <div class="card">
       <h2>Live Stream ESP32-S3 CAM</h2>
       <div class="cam-box">
-        <img id="cam-stream" alt="ESP32-S3 Stream" />
+        <img id="cam-stream" alt="ESP32-S3 Live Stream" style="display: none;" />
+        <div class="cam-placeholder" id="cam-placeholder">Masukkan URL/IP ESP32-S3 lalu klik Hubungkan untuk menampilkan live stream.</div>
       </div>
       <div class="controls-row">
-        <input type="text" id="esp-ip" placeholder="IP ESP32-S3, misal: http://192.168.1.50" />
+        <input type="text" id="esp-ip" placeholder="Base API, misal: http://192.168.1.50" />
+        <input type="text" id="stream-url" placeholder="URL Stream (opsional, default: <Base API>/stream)" />
         <button class="action" id="connect-esp">Hubungkan</button>
+        <button class="secondary" id="reload-stream">Reload Stream</button>
       </div>
     </div>
   </div>
