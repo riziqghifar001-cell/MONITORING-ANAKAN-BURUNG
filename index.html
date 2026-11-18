@@ -3,32 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Monitoring Suhu Anakan Jalak Bali</title>
+  <title>EMQX Monitoring Anakan Jalak Bali</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --ok: #22c55e; --err: #ef4444; }
+    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #38bdf8; --ok: #22c55e; --err: #ef4444; --warn: #f59e0b; }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background: var(--bg); color: var(--text); padding: 20px; }
-    .container { max-width: 1080px; margin: 0 auto; display: grid; gap: 18px; }
+    .container { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
     header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-    h1 { font-size: 1.35rem; }
-    .badge { background: var(--card); border: 1px solid #334155; padding: 6px 12px; border-radius: 999px; font-size: 0.85rem; color: var(--muted); }
+    h1 { font-size: 1.3rem; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { background: var(--card); border: 1px solid #334155; padding: 6px 12px; border-radius: 999px; font-size: 0.82rem; color: var(--muted); }
     .badge.ok { border-color: var(--ok); color: #86efac; }
     .badge.err { border-color: var(--err); color: #fca5a5; }
+    .badge.warn { border-color: var(--warn); color: #fcd34d; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
     .card { background: var(--card); border: 1px solid #334155; border-radius: 12px; padding: 16px; }
     .card h2 { font-size: 1rem; color: var(--muted); margin-bottom: 10px; }
     .temp-val { font-size: 2.4rem; font-weight: 700; color: var(--accent); }
-    .sub { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
-    .cam-box { width: 100%; aspect-ratio: 16 / 9; background: #020617; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #334155; position: relative; }
-    .cam-box img { width: 100%; height: 100%; object-fit: cover; }
-    .cam-placeholder { color: var(--muted); font-size: 0.88rem; padding: 12px; text-align: center; }
+    .sub { font-size: 0.85rem; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+    .alert-box { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 0.82rem; background: rgba(245, 158, 11, 0.14); border: 1px solid var(--warn); color: #fde68a; display: none; }
     .relay-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .relay-btn { background: #0f172a; color: var(--text); border: 1px solid #475569; border-radius: 10px; padding: 12px; text-align: left; cursor: pointer; transition: 0.15s; }
     .relay-btn.on { border-color: var(--ok); background: rgba(34, 197, 94, 0.14); }
     .relay-btn .name { font-weight: 600; font-size: 0.92rem; display: block; }
     .relay-btn .state { font-size: 0.78rem; color: var(--muted); margin-top: 4px; display: block; }
     .controls-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    input { background: #0f172a; color: var(--text); border: 1px solid #475569; border-radius: 8px; padding: 8px 10px; font-size: 0.88rem; flex: 1; min-width: 140px; }
+    input { background: #0f172a; color: var(--text); border: 1px solid #475569; border-radius: 8px; padding: 8px 10px; font-size: 0.88rem; flex: 1; min-width: 150px; }
     button.action { background: var(--accent); color: #0f172a; font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
     button.secondary { background: #334155; color: var(--text); font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   </style>
@@ -36,8 +37,11 @@
 <body>
   <div class="container">
     <header>
-      <h1>Brooder Jalak Bali — ESP32-S3 CAM &amp; Relay 4-Ch</h1>
-      <span class="badge" id="status-badge">Menunggu Koneksi ESP32</span>
+      <h1>Brooder Jalak Bali — EMQX Realtime Control</h1>
+      <div class="badges">
+        <span class="badge" id="mqtt-status">Broker: Menghubungkan...</span>
+        <span class="badge warn" id="esp-status">ESP32-S3: Menunggu Data</span>
+      </div>
     </header>
 
     <div class="grid">
@@ -45,6 +49,8 @@
         <h2>Suhu Kandang &amp; Target</h2>
         <div class="temp-val" id="temp-display">--.- °C</div>
         <div class="sub" id="hum-display">Kelembapan: --% | Hysteresis: ±0.5 °C</div>
+        <div class="sub" id="last-seen">Update terakhir: -</div>
+        <div class="alert-box" id="sensor-alert">Sensor suhu/kelembapan tidak terbaca (null). Fail-safe aktif: pemanas &amp; kipas otomatis dimatikan saat mode Auto.</div>
         <div class="controls-row">
           <input type="number" step="0.1" id="target-temp" value="33.0" aria-label="Target Suhu" />
           <button class="action" id="save-target">Set Target</button>
@@ -62,16 +68,16 @@
     </div>
 
     <div class="card">
-      <h2>Live Stream ESP32-S3 CAM</h2>
-      <div class="cam-box">
-        <img id="cam-stream" alt="ESP32-S3 Live Stream" style="display: none;" />
-        <div class="cam-placeholder" id="cam-placeholder">Masukkan URL/IP ESP32-S3 lalu klik Hubungkan untuk menampilkan live stream.</div>
+      <h2>Pengaturan Koneksi EMQX Serverless (WSS)</h2>
+      <div class="controls-row">
+        <input type="text" id="broker-url" placeholder="wss://q0220110.ala.asia-southeast1.emqxsl.com:8084/mqtt" />
+        <input type="text" id="topic-prefix" placeholder="brooder/jalak" />
       </div>
       <div class="controls-row">
-        <input type="text" id="esp-ip" placeholder="Base API, misal: http://192.168.1.50" />
-        <input type="text" id="stream-url" placeholder="URL Stream (opsional, default: <Base API>/stream)" />
-        <button class="action" id="connect-esp">Hubungkan</button>
-        <button class="secondary" id="reload-stream">Reload Stream</button>
+        <input type="text" id="mqtt-user" placeholder="Username EMQX" />
+        <input type="password" id="mqtt-pass" placeholder="Password EMQX" />
+        <button class="action" id="reconnect-mqtt">Hubungkan</button>
+        <button class="secondary" id="clear-auth">Hapus Auth</button>
       </div>
     </div>
   </div>
