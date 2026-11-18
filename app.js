@@ -1,5 +1,6 @@
 ﻿const DEFAULT_WSS_URL = "wss://q0220110.ala.asia-southeast1.emqxsl.com:8084/mqtt";
 const DEFAULT_PREFIX = "brooder/jalak";
+const DEFAULT_CAM_URL = "http://192.168.1.14:81/stream";
 const ESP_STALE_MS = 10000;
 
 const relays = [
@@ -12,11 +13,15 @@ const relays = [
 let autoMode = true;
 let client = null;
 let lastTelemetryAt = 0;
+let camRetryTimer = null;
+let snapTimer = null;
 
 let brokerUrl = (localStorage.getItem("emqx_wss_url") || DEFAULT_WSS_URL).trim();
 let topicPrefix = (localStorage.getItem("emqx_topic_prefix") || DEFAULT_PREFIX).trim().replace(/\/+$/, "");
 let mqttUser = localStorage.getItem("emqx_user") || "";
 let mqttPass = localStorage.getItem("emqx_pass") || "";
+let camUrl = (localStorage.getItem("cam_stream_url") ?? DEFAULT_CAM_URL).trim();
+let snapMode = localStorage.getItem("cam_snap_mode") === "1";
 
 const mqttStatusEl = document.getElementById("mqtt-status");
 const espStatusEl = document.getElementById("esp-status");
@@ -31,15 +36,85 @@ const brokerInput = document.getElementById("broker-url");
 const prefixInput = document.getElementById("topic-prefix");
 const userInput = document.getElementById("mqtt-user");
 const passInput = document.getElementById("mqtt-pass");
+const camInput = document.getElementById("cam-url");
+const snapCheck = document.getElementById("snap-poll");
+const camImg = document.getElementById("cam-stream");
+const camPlaceholder = document.getElementById("cam-placeholder");
 
 brokerInput.value = brokerUrl;
 prefixInput.value = topicPrefix;
 userInput.value = mqttUser;
 passInput.value = mqttPass;
+camInput.value = camUrl;
+snapCheck.checked = snapMode;
 
 function setBadge(el, text, type = "") {
   el.textContent = text;
   el.className = "badge" + (type ? ` ${type}` : "");
+}
+
+function clearCamTimers() {
+  if (camRetryTimer) {
+    clearTimeout(camRetryTimer);
+    camRetryTimer = null;
+  }
+  if (snapTimer) {
+    clearInterval(snapTimer);
+    snapTimer = null;
+  }
+}
+
+function loadCamFrame() {
+  if (!camUrl) {
+    camImg.style.display = "none";
+    camImg.removeAttribute("src");
+    camPlaceholder.style.display = "block";
+    camPlaceholder.textContent = "Masukkan URL stream/snapshot kamera lalu klik Terapkan Kamera.";
+    return;
+  }
+
+  const sep = camUrl.includes("?") ? "&" : "?";
+  const nextSrc = `${camUrl}${sep}t=${Date.now()}`;
+
+  camImg.onload = () => {
+    if (camRetryTimer) {
+      clearTimeout(camRetryTimer);
+      camRetryTimer = null;
+    }
+    camPlaceholder.style.display = "none";
+    camImg.style.display = "block";
+  };
+
+  camImg.onerror = () => {
+    if (!snapMode) {
+      camImg.style.display = "none";
+    }
+    camPlaceholder.style.display = "block";
+    camPlaceholder.textContent = `Kamera belum terjangkau (${camUrl}). Cek jaringan/URL atau mode HTTPS->HTTP.`;
+    if (!snapMode && !camRetryTimer) {
+      camRetryTimer = setTimeout(() => {
+        camRetryTimer = null;
+        loadCamFrame();
+      }, 4000);
+    }
+  };
+
+  camImg.src = nextSrc;
+}
+
+function startCamera() {
+  clearCamTimers();
+  if (!camUrl) {
+    loadCamFrame();
+    return;
+  }
+  camPlaceholder.style.display = "block";
+  camPlaceholder.textContent = `Menghubungkan ke kamera: ${camUrl} ...`;
+  loadCamFrame();
+
+  if (snapMode) {
+    snapTimer = setInterval(loadCamFrame, 3000);
+  }
 }
 
 function updateEspHealth() {
@@ -151,6 +226,18 @@ document.getElementById("all-off").onclick = () => {
   publishJson(`${topicPrefix}/cmd/all_off`, {});
 };
 
+document.getElementById("apply-cam").onclick = () => {
+  camUrl = camInput.value.trim();
+  snapMode = snapCheck.checked;
+  localStorage.setItem("cam_stream_url", camUrl);
+  localStorage.setItem("cam_snap_mode", snapMode ? "1" : "0");
+  startCamera();
+};
+
+document.getElementById("reload-cam").onclick = () => {
+  startCamera();
+};
+
 document.getElementById("reconnect-mqtt").onclick = () => {
   brokerUrl = brokerInput.value.trim();
   topicPrefix = prefixInput.value.trim().replace(/\/+$/, "");
@@ -177,5 +264,6 @@ document.getElementById("clear-auth").onclick = () => {
 
 renderRelays();
 connectMqtt();
+startCamera();
 updateEspHealth();
 setInterval(updateEspHealth, 2000);

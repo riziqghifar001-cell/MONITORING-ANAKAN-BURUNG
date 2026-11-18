@@ -28,8 +28,13 @@
     .relay-btn.on { border-color: var(--ok); background: rgba(34, 197, 94, 0.14); }
     .relay-btn .name { font-weight: 600; font-size: 0.92rem; display: block; }
     .relay-btn .state { font-size: 0.78rem; color: var(--muted); margin-top: 4px; display: block; }
-    .controls-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .cam-box { width: 100%; aspect-ratio: 16 / 9; background: #020617; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #334155; position: relative; }
+    .cam-box img { width: 100%; height: 100%; object-fit: cover; }
+    .cam-placeholder { color: var(--muted); font-size: 0.88rem; padding: 14px; text-align: center; line-height: 1.45; }
+    .controls-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
     input { background: #0f172a; color: var(--text); border: 1px solid #475569; border-radius: 8px; padding: 8px 10px; font-size: 0.88rem; flex: 1; min-width: 150px; }
+    label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.84rem; color: var(--muted); cursor: pointer; }
+    label.check input { flex: none; min-width: 0; }
     button.action { background: var(--accent); color: #0f172a; font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
     button.secondary { background: #334155; color: var(--text); font-weight: 600; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   </style>
@@ -64,6 +69,23 @@
           <button class="action" id="mode-toggle">Auto: ON</button>
           <button class="secondary" id="all-off">Matikan Semua</button>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Live Camera Kandang</h2>
+      <div class="cam-box">
+        <img id="cam-stream" alt="Live Camera Kandang" style="display: none;" />
+        <div class="cam-placeholder" id="cam-placeholder">Masukkan URL stream/snapshot kamera lalu klik Terapkan Kamera.</div>
+      </div>
+      <div class="controls-row">
+        <input type="text" id="cam-url" placeholder="URL Kamera, misal: http://192.168.1.14:81/stream" />
+        <label class="check">
+          <input type="checkbox" id="snap-poll" />
+          <span>Mode Snapshot (tiap 3d)</span>
+        </label>
+        <button class="action" id="apply-cam">Terapkan Kamera</button>
+        <button class="secondary" id="reload-cam">Reload</button>
       </div>
     </div>
 
